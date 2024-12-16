@@ -25,13 +25,13 @@ let waitingUser = null; // Eşleştirme için bekleyen kullanıcı
 io.on('connection', (socket) => {
     console.log('Bir kullanıcı bağlandı:', socket.id);
 
-    // Kullanıcı odaya atanır
+    // Eğer bekleyen bir kullanıcı varsa
     if (waitingUser) {
-        // Oda ismi oluşturuluyor
+        // Oda ismi oluşturuluyor, her iki kullanıcıyı aynı odaya katıyoruz
         const room = `Room-${waitingUser.id}-${socket.id}`;
         console.log(`Oda oluşturuldu: ${room}`);
 
-        // Her iki kullanıcıyı da aynı odaya katıyoruz
+        // Her iki kullanıcıyı aynı odaya katıyoruz
         socket.join(room);
         waitingUser.join(room);
 
@@ -40,9 +40,10 @@ io.on('connection', (socket) => {
         waitingUser.emit('roomAssigned', { room });
 
         // Eşleşme tamamlandıktan sonra waitingUser sıfırlanır
-        waitingUser = null; 
+        waitingUser = null;
     } else {
-        waitingUser = socket; // İlk kullanıcı beklemeye alınır
+        // İlk kullanıcı beklemeye alınır
+        waitingUser = socket; 
         console.log('Kullanıcı eşleşme bekliyor:', socket.id);
     }
 

@@ -21,20 +21,21 @@ const Home: React.FC = () => {
         // Sunucudan oda bilgisi alınır
         socket.on('roomAssigned', ({ room }: { room: string }) => {
             setRoom(room);
-            console.log(`Odaya atandınız: ${room}`);
+            console.log(`Odaya atandınız: ${room}`); // Burada oda adı yazdırılabilir
         });
-
+    
         // Sunucudan gelen mesajlar dinlenir
         socket.on('message', (msg: Message) => {
             setMessages((prev) => [...prev, msg]);
         });
-
+    
         // Temizlik
         return () => {
             socket.off('roomAssigned');
             socket.off('message');
         };
     }, []);
+    
 
     const sendMessage = () => {
         if (input.trim() && room) {
