@@ -9,43 +9,51 @@ import "dotenv/config";
 const app = express();
 const server = http.createServer(app);
 
-// CORS ayarlarını burada doğru yapalım
 const corsOptions = {
-    origin: ["https://unc-project.vercel.app", "https://unc-project-9xtu.vercel.app"], // Her iki domain
+    origin: ["https://unc-project.vercel.app/"],
     methods: ["GET", "POST"],
     credentials: true
 };
 
 const io = new Server(server, {
-    cors: corsOptions, // Socket.io için de aynı CORS ayarlarını kullanıyoruz
+    cors: corsOptions,
 });
 
 app.use(express.json());
 app.use(cookieParser());
 app.use(morgan("dev"));
-app.use(cors(corsOptions)); // Express için de aynı CORS ayarlarını ekliyoruz
+app.use(cors(corsOptions));
 
-let waitingUser = null; // Eşleştirme için bekleyen kullanıcı
+// Aktif odaları tutacağımız obje
+const activeRooms = new Map(); // {roomId: Set(socketIds)}
 
 io.on('connection', (socket) => {
     console.log('Bir kullanıcı bağlandı:', socket.id);
 
-    // Kullanıcı odaya atanır
-    if (waitingUser) {
-        const room = `Room-${waitingUser.id}-${socket.id}`;
-        socket.join(room);
-        waitingUser.join(room);
+    // Mevcut odaları istemciye gönder
+    socket.emit('activeRooms', Array.from(activeRooms.keys()));
 
-        // Oda bilgisi gönderilir
-        socket.emit('roomAssigned', { room });
-        waitingUser.emit('roomAssigned', { room });
+    // Yeni oda oluşturma isteği
+    socket.on('createRoom', () => {
+        const roomId = `Room-${Date.now()}`;
+        activeRooms.set(roomId, new Set([socket.id]));
+        socket.join(roomId);
+        socket.emit('roomJoined', { room: roomId });
+        io.emit('activeRooms', Array.from(activeRooms.keys()));
+    });
 
-        console.log(`Oda oluşturuldu: ${room}`);
-        waitingUser = null; // Bekleyen kullanıcı sıfırlanır
-    } else {
-        waitingUser = socket; // İlk kullanıcı beklemeye alınır
-        console.log('Kullanıcı eşleşme bekliyor:', socket.id);
-    }
+    // Odaya katılma isteği
+    socket.on('joinRoom', (roomId) => {
+        const room = activeRooms.get(roomId);
+        if (room) {
+            room.add(socket.id);
+            socket.join(roomId);
+            socket.emit('roomJoined', { room: roomId });
+            
+            // Odadaki kullanıcı sayısını güncelle
+            io.to(roomId).emit('userCount', room.size);
+        }
+    });
 
     // Mesaj gönderme
     socket.on('message', ({ room, user, text }) => {
@@ -55,9 +63,22 @@ io.on('connection', (socket) => {
     // Kullanıcı ayrılırsa
     socket.on('disconnect', () => {
         console.log('Bir kullanıcı ayrıldı:', socket.id);
-        if (waitingUser && waitingUser.id === socket.id) {
-            waitingUser = null; // Bekleyen kullanıcı ayrılırsa sıfırlanır
-        }
+        
+        // Kullanıcının bulunduğu odayı bul ve güncelle
+        activeRooms.forEach((users, roomId) => {
+            if (users.has(socket.id)) {
+                users.delete(socket.id);
+                
+                // Odada kimse kalmadıysa odayı sil
+                if (users.size === 0) {
+                    activeRooms.delete(roomId);
+                    io.emit('activeRooms', Array.from(activeRooms.keys()));
+                } else {
+                    // Odadaki kullanıcı sayısını güncelle
+                    io.to(roomId).emit('userCount', users.size);
+                }
+            }
+        });
     });
 });
 
