@@ -9,13 +9,13 @@ interface Message {
 // Socket bağlantısını component dışında oluştur
 const socket: Socket = io('https://unc-project-9xtu.vercel.app', {
     withCredentials: true,
-    transports: ['polling'],
+    transports: ['polling', 'websocket'],
     reconnection: true,
     reconnectionAttempts: 5,
     reconnectionDelay: 1000,
-    timeout: 10000,
-    path: '/socket.io/',
-    autoConnect: false,
+    timeout: 20000,
+    forceNew: true,
+    autoConnect: false
 });
 
 // Kullanıcı adından renk üretme fonksiyonu

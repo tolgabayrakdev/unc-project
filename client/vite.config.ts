@@ -10,6 +10,8 @@ export default defineConfig({
         target: 'https://unc-project-9xtu.vercel.app',
         changeOrigin: true,
         ws: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/socket\.io/, '/socket.io')
       },
     },
   },

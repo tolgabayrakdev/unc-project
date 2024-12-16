@@ -9,23 +9,18 @@
     "routes": [
         {
             "src": "/socket.io/(.*)",
-            "dest": "api/index.js",
-            "headers": {
-                "Access-Control-Allow-Origin": "https://unc-project.vercel.app",
-                "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, Authorization",
-                "Access-Control-Allow-Credentials": "true"
-            }
+            "dest": "/api/index.js"
+        },
+        {
+            "src": "/health",
+            "dest": "/api/index.js"
         },
         {
             "src": "/(.*)",
-            "dest": "api/index.js",
-            "headers": {
-                "Access-Control-Allow-Origin": "https://unc-project.vercel.app",
-                "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, Authorization",
-                "Access-Control-Allow-Credentials": "true"
-            }
+            "dest": "/api/index.js"
         }
-    ]
+    ],
+    "env": {
+        "NODE_ENV": "production"
+    }
 }

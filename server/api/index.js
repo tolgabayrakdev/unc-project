@@ -14,41 +14,37 @@ const ALLOWED_ORIGINS = [
     "http://localhost:5173"
 ];
 
-const corsOptions = {
-    origin: function (origin, callback) {
-        if (!origin || ALLOWED_ORIGINS.indexOf(origin) !== -1) {
-            callback(null, true);
-        } else {
-            callback(new Error('CORS not allowed'));
-        }
-    },
+app.use(cors({
+    origin: ALLOWED_ORIGINS,
     methods: ["GET", "POST", "OPTIONS"],
     credentials: true,
-    allowedHeaders: ["Content-Type", "Authorization"]
-};
+}));
 
-const io = new Server(server, {
-    cors: corsOptions,
-    transports: ['polling'],
-    allowEIO3: true,
-    pingTimeout: 60000,
-    pingInterval: 25000,
-    path: '/socket.io/',
-    allowUpgrades: false
-});
-
-app.use(cors(corsOptions));
 app.use(express.json());
 app.use(cookieParser());
 app.use(morgan("dev"));
 
-app.options('*', cors(corsOptions));
+const io = new Server(server, {
+    cors: {
+        origin: ALLOWED_ORIGINS,
+        methods: ["GET", "POST"],
+        credentials: true,
+    },
+    allowEIO3: true,
+    transports: ['polling', 'websocket'],
+    pingInterval: 10000,
+    pingTimeout: 5000,
+    cookie: false
+});
 
 // Aktif odaları tutacağımız obje
-const activeRooms = new Map(); // {roomId: Set(socketIds)}
+const activeRooms = new Map();
 
 io.on('connection', (socket) => {
     console.log('Bir kullanıcı bağlandı:', socket.id);
+
+    // Bağlantı başarılı olduğunda bir onay gönder
+    socket.emit('connectionEstablished', { id: socket.id });
 
     // Mevcut odaları istemciye gönder
     socket.emit('activeRooms', Array.from(activeRooms.keys()));
@@ -102,10 +98,11 @@ io.on('connection', (socket) => {
     });
 });
 
-app.get('/', (req, res) => {
-    res.send('Server is running');
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'ok' });
 });
 
-server.listen(process.env.SERVER_PORT || 1234, () => {
-    console.log(`Server running on port ${process.env.SERVER_PORT || 1234}`);
+const PORT = process.env.PORT || 1234;
+server.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
 });
