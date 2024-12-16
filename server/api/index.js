@@ -27,37 +27,35 @@ io.on('connection', (socket) => {
 
     // Kullanıcı odaya atanır
     if (waitingUser) {
+        // Oda ismi oluşturuluyor
         const room = `Room-${waitingUser.id}-${socket.id}`;
+        console.log(`Oda oluşturuldu: ${room}`);
+
+        // Her iki kullanıcıyı da aynı odaya katıyoruz
         socket.join(room);
         waitingUser.join(room);
 
-        // İki kullanıcıya oda bilgisi gönderilir
+        // Oda bilgisi gönderilir
         socket.emit('roomAssigned', { room });
         waitingUser.emit('roomAssigned', { room });
 
-        console.log(`Oda oluşturuldu: ${room}`);
-        waitingUser = null; // Bekleyen kullanıcı sıfırlanır
+        // Eşleşme tamamlandıktan sonra waitingUser sıfırlanır
+        waitingUser = null; 
     } else {
         waitingUser = socket; // İlk kullanıcı beklemeye alınır
         console.log('Kullanıcı eşleşme bekliyor:', socket.id);
     }
 
-    // Mesaj gönderme
+    // Mesaj gönderme işlemi
     socket.on('message', ({ room, user, text }) => {
         io.to(room).emit('message', { user, text });
     });
 
-    // Kullanıcı ayrılırsa
+    // Kullanıcı ayrıldığında
     socket.on('disconnect', () => {
         console.log('Bir kullanıcı ayrıldı:', socket.id);
         if (waitingUser && waitingUser.id === socket.id) {
             waitingUser = null; // Bekleyen kullanıcı ayrılırsa sıfırlanır
-        } else {
-            // Diğer kullanıcıya oda bağlantısını kes
-            const rooms = Object.keys(socket.rooms);
-            rooms.forEach(room => {
-                socket.leave(room); // Kullanıcıyı odadan çıkar
-            });
         }
     });
 });
