@@ -12,8 +12,19 @@ const socket: Socket = io('https://unc-project-9xtu.vercel.app', {
     reconnection: true,
     reconnectionAttempts: 5,
     reconnectionDelay: 1000,
-    timeout: 10000
+    timeout: 10000,
+    path: '/socket.io/',
+    autoConnect: false,
 });
+
+// Bağlantıyı başlat
+useEffect(() => {
+    socket.connect();
+    
+    return () => {
+        socket.disconnect();
+    };
+}, []);
 
 // Socket bağlantı durumunu izle
 socket.on('connect_error', (error) => {

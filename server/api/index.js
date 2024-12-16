@@ -15,37 +15,34 @@ const ALLOWED_ORIGINS = [
 ];
 
 const corsOptions = {
-    origin: ALLOWED_ORIGINS,
-    methods: ["GET", "POST"],
+    origin: function (origin, callback) {
+        if (!origin || ALLOWED_ORIGINS.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            callback(new Error('CORS not allowed'));
+        }
+    },
+    methods: ["GET", "POST", "OPTIONS"],
     credentials: true,
     allowedHeaders: ["Content-Type", "Authorization"]
 };
 
 const io = new Server(server, {
-    cors: {
-        origin: ALLOWED_ORIGINS,
-        methods: ["GET", "POST"],
-        credentials: true,
-        allowedHeaders: ["Content-Type", "Authorization"]
-    },
+    cors: corsOptions,
     transports: ['polling'],
+    allowEIO3: true,
     pingTimeout: 60000,
     pingInterval: 25000,
-    path: '/socket.io/'
+    path: '/socket.io/',
+    allowUpgrades: false
 });
 
-app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', ALLOWED_ORIGINS);
-    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    res.header('Access-Control-Allow-Credentials', true);
-    next();
-});
-
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(cookieParser());
 app.use(morgan("dev"));
-app.use(cors(corsOptions));
+
+app.options('*', cors(corsOptions));
 
 // Aktif odaları tutacağımız obje
 const activeRooms = new Map(); // {roomId: Set(socketIds)}
