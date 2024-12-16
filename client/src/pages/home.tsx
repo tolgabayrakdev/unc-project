@@ -7,7 +7,24 @@ interface Message {
 }
 
 const socket: Socket = io('https://unc-project-9xtu.vercel.app', {
-    withCredentials: true
+    withCredentials: true,
+    transports: ['websocket', 'polling'],
+    reconnection: true,
+    reconnectionAttempts: 5,
+    reconnectionDelay: 1000,
+});
+
+// Socket bağlantı durumunu izle
+socket.on('connect_error', (error) => {
+    console.error('Bağlantı hatası:', error);
+});
+
+socket.on('connect', () => {
+    console.log('Sunucuya bağlandı');
+});
+
+socket.on('disconnect', (reason) => {
+    console.log('Sunucudan ayrıldı:', reason);
 });
 
 // Kullanıcı adından renk üretme fonksiyonu

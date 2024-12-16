@@ -9,21 +9,34 @@ import "dotenv/config";
 const app = express();
 const server = http.createServer(app);
 
+const ALLOWED_ORIGINS = [
+    "https://unc-project.vercel.app",
+    "http://localhost:5173"
+];
+
 const corsOptions = {
-    origin: ["https://unc-project.vercel.app"],
+    origin: ALLOWED_ORIGINS,
     methods: ["GET", "POST"],
-    credentials: true
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"]
 };
 
 const io = new Server(server, {
     cors: {
-        origin: [
-            "https://unc-project.vercel.app",
-            "http://localhost:5173"
-        ],
+        origin: ALLOWED_ORIGINS,
         methods: ["GET", "POST"],
-        credentials: true
+        credentials: true,
+        allowedHeaders: ["Content-Type", "Authorization"]
     },
+    transports: ['websocket', 'polling'],
+    pingTimeout: 60000,
+    pingInterval: 25000,
+    cookie: {
+        name: "io",
+        httpOnly: true,
+        sameSite: "none",
+        secure: true
+    }
 });
 
 app.use(express.json());
