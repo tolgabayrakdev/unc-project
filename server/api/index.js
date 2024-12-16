@@ -8,30 +8,30 @@ import "dotenv/config";
 
 const app = express();
 const server = http.createServer(app);
+
+// CORS ayarlarını burada doğru yapalım
+const corsOptions = {
+    origin: ["https://unc-project.vercel.app", "https://unc-project-9xtu.vercel.app"], // Her iki domain
+    methods: ["GET", "POST"]
+};
+
 const io = new Server(server, {
-    cors: {
-        origin: ["https://unc-project.vercel.app", "https://unc-project-9xtu.vercel.app"],
-        methods: ["GET", "POST"],
-    }
+    cors: corsOptions, // Socket.io için de aynı CORS ayarlarını kullanıyoruz
 });
 
 app.use(express.json());
 app.use(cookieParser());
 app.use(morgan("dev"));
-app.use(cors({ origin: true, credentials: true }));
+app.use(cors(corsOptions)); // Express için de aynı CORS ayarlarını ekliyoruz
 
 let waitingUser = null; // Eşleştirme için bekleyen kullanıcı
 
 io.on('connection', (socket) => {
     console.log('Bir kullanıcı bağlandı:', socket.id);
 
-    // Eğer bekleyen bir kullanıcı varsa
+    // Kullanıcı odaya atanır
     if (waitingUser) {
-        // Oda ismi oluşturuluyor, her iki kullanıcıyı aynı odaya katıyoruz
         const room = `Room-${waitingUser.id}-${socket.id}`;
-        console.log(`Oda oluşturuldu: ${room}`);
-
-        // Her iki kullanıcıyı aynı odaya katıyoruz
         socket.join(room);
         waitingUser.join(room);
 
@@ -39,20 +39,19 @@ io.on('connection', (socket) => {
         socket.emit('roomAssigned', { room });
         waitingUser.emit('roomAssigned', { room });
 
-        // Eşleşme tamamlandıktan sonra waitingUser sıfırlanır
-        waitingUser = null;
+        console.log(`Oda oluşturuldu: ${room}`);
+        waitingUser = null; // Bekleyen kullanıcı sıfırlanır
     } else {
-        // İlk kullanıcı beklemeye alınır
-        waitingUser = socket; 
+        waitingUser = socket; // İlk kullanıcı beklemeye alınır
         console.log('Kullanıcı eşleşme bekliyor:', socket.id);
     }
 
-    // Mesaj gönderme işlemi
+    // Mesaj gönderme
     socket.on('message', ({ room, user, text }) => {
         io.to(room).emit('message', { user, text });
     });
 
-    // Kullanıcı ayrıldığında
+    // Kullanıcı ayrılırsa
     socket.on('disconnect', () => {
         console.log('Bir kullanıcı ayrıldı:', socket.id);
         if (waitingUser && waitingUser.id === socket.id) {
