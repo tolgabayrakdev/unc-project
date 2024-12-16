@@ -10,7 +10,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: "https://unc-project.vercel.app",
+        origin: ["https://unc-project.vercel.app", "https://unc-project-9xtu.vercel.app"],
         methods: ["GET", "POST"],
     }
 });
