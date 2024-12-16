@@ -9,67 +9,86 @@ import "dotenv/config";
 const app = express();
 const server = http.createServer(app);
 
-const ALLOWED_ORIGINS = [
-    "https://unc-project.vercel.app",
-    "http://localhost:5173"
-];
+const corsOptions = {
+    origin: ["http://localhost:5173", "https://unc-project-9xtu.vercel.app"],
+    methods: ["GET", "POST"],
+    credentials: true
+};
 
-app.use(cors({
-    origin: ALLOWED_ORIGINS,
-    methods: ["GET", "POST", "OPTIONS"],
-    credentials: true,
-}));
+const io = new Server(server, {
+    cors: corsOptions,
+});
 
 app.use(express.json());
 app.use(cookieParser());
 app.use(morgan("dev"));
-
-const io = new Server(server, {
-    cors: {
-        origin: ALLOWED_ORIGINS,
-        methods: ["GET", "POST"],
-        credentials: true,
-    },
-    allowEIO3: true,
-    transports: ['polling', 'websocket'],
-    pingInterval: 10000,
-    pingTimeout: 5000,
-    cookie: false
-});
+app.use(cors(corsOptions));
 
 // Aktif odaları tutacağımız obje
-const activeRooms = new Map();
+const activeRooms = new Map(); // {roomId: { users: Set(socketIds), usernames: Set(usernames), colors: Map(username, color) }}
 
 io.on('connection', (socket) => {
     console.log('Bir kullanıcı bağlandı:', socket.id);
-
-    // Bağlantı başarılı olduğunda bir onay gönder
-    socket.emit('connectionEstablished', { id: socket.id });
 
     // Mevcut odaları istemciye gönder
     socket.emit('activeRooms', Array.from(activeRooms.keys()));
 
     // Yeni oda oluşturma isteği
-    socket.on('createRoom', () => {
+    socket.on('createRoom', (username) => {
         const roomId = `Room-${Date.now()}`;
-        activeRooms.set(roomId, new Set([socket.id]));
+        const userColor = generateColor(); // Yeni bir renk oluştur
+        
+        activeRooms.set(roomId, {
+            users: new Set([socket.id]),
+            usernames: new Set([username]),
+            colors: new Map([[username, userColor]])
+        });
+        
         socket.join(roomId);
-        socket.emit('roomJoined', { room: roomId });
+        socket.emit('roomJoined', { 
+            room: roomId,
+            userColor: userColor
+        });
+        
+        // Tüm kullanıcılara güncel oda listesini gönder
         io.emit('activeRooms', Array.from(activeRooms.keys()));
     });
 
     // Odaya katılma isteği
-    socket.on('joinRoom', (roomId) => {
+    socket.on('joinRoom', ({ roomId, username }) => {
         const room = activeRooms.get(roomId);
         if (room) {
-            room.add(socket.id);
-            socket.join(roomId);
-            socket.emit('roomJoined', { room: roomId });
+            if (room.users.size >= 10) {
+                socket.emit('roomError', { message: 'Oda maksimum kapasiteye ulaştı!' });
+                return;
+            }
+
+            const userColor = generateColor(); // Yeni kullanıcı için renk oluştur
+            room.users.add(socket.id);
+            room.usernames.add(username);
+            room.colors.set(username, userColor);
             
-            // Odadaki kullanıcı sayısını güncelle
-            io.to(roomId).emit('userCount', room.size);
+            socket.join(roomId);
+            socket.emit('roomJoined', { 
+                room: roomId,
+                userColor: userColor
+            });
+
+            // Odadaki tüm kullanıcılara güncel bilgileri gönder
+            io.to(roomId).emit('userCount', room.users.size);
+            io.to(roomId).emit('userList', Array.from(room.usernames));
+            io.to(roomId).emit('userColors', Object.fromEntries(room.colors));
         }
     });
+
+    // Renk üretme fonksiyonu
+    function generateColor() {
+        const colors = [
+            '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEEAD',
+            '#D4A5A5', '#9B59B6', '#3498DB', '#E74C3C', '#2ECC71'
+        ];
+        return colors[Math.floor(Math.random() * colors.length)];
+    }
 
     // Mesaj gönderme
     socket.on('message', ({ room, user, text }) => {
@@ -80,29 +99,28 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         console.log('Bir kullanıcı ayrıldı:', socket.id);
         
-        // Kullanıcının bulunduğu odayı bul ve güncelle
-        activeRooms.forEach((users, roomId) => {
-            if (users.has(socket.id)) {
-                users.delete(socket.id);
+        activeRooms.forEach((roomData, roomId) => {
+            if (roomData.users.has(socket.id)) {
+                roomData.users.delete(socket.id);
                 
                 // Odada kimse kalmadıysa odayı sil
-                if (users.size === 0) {
+                if (roomData.users.size === 0) {
                     activeRooms.delete(roomId);
                     io.emit('activeRooms', Array.from(activeRooms.keys()));
                 } else {
-                    // Odadaki kullanıcı sayısını güncelle
-                    io.to(roomId).emit('userCount', users.size);
+                    // Odadaki kullanıcı sayısını ve listesini güncelle
+                    io.to(roomId).emit('userCount', roomData.users.size);
+                    io.to(roomId).emit('userList', Array.from(roomData.usernames));
                 }
             }
         });
     });
 });
 
-app.get('/health', (req, res) => {
-    res.status(200).json({ status: 'ok' });
+app.get('/', (req, res) => {
+    res.send('Server is running');
 });
 
-const PORT = process.env.PORT || 1234;
-server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+server.listen(process.env.SERVER_PORT || 1234, () => {
+    console.log(`Server running on port ${process.env.SERVER_PORT || 1234}`);
 });

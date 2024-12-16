@@ -9,11 +9,15 @@
     "routes": [
         {
             "src": "/socket.io/(.*)",
-            "dest": "/api/index.js"
-        },
-        {
-            "src": "/health",
-            "dest": "/api/index.js"
+            "dest": "/api/index.js",
+            "methods": ["GET", "POST", "OPTIONS"],
+            "headers": {
+                "Access-Control-Allow-Origin": "https://unc-project.vercel.app",
+                "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization",
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Max-Age": "86400"
+            }
         },
         {
             "src": "/(.*)",

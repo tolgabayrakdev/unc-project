@@ -4,33 +4,18 @@ import { io, Socket } from 'socket.io-client';
 interface Message {
     user: string;
     text: string;
+    timestamp?: number;
 }
 
-const socket: Socket = io('https://unc-project-9xtu.vercel.app', {
-    withCredentials: true,
-    transports: ['polling', 'websocket'],
-    reconnection: false,
-    timeout: 5000,
-    forceNew: true,
-    autoConnect: false
+interface UserColors {
+    [key: string]: string;
+}
+
+const socket: Socket = io('http://localhost:1234', {
+    withCredentials: true
 });
 
-// Kullanıcı adından renk üretme fonksiyonu
-const generateColorFromUsername = (username: string): string => {
-    const colors = [
-        'bg-blue-500',
-        'bg-purple-500',
-        'bg-pink-500',
-        'bg-green-500',
-        'bg-yellow-500',
-        'bg-red-500',
-        'bg-indigo-500',
-        'bg-teal-500'
-    ];
-    
-    const sum = username.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    return colors[sum % colors.length];
-};
+
 
 const Home: React.FC = () => {
     const [messages, setMessages] = useState<Message[]>([]);
@@ -40,115 +25,92 @@ const Home: React.FC = () => {
     const [room, setRoom] = useState<string | null>(null);
     const [activeRooms, setActiveRooms] = useState<string[]>([]);
     const [userCount, setUserCount] = useState<number>(0);
-    const [isUsernameSet, setIsernameSet] = useState<boolean>(false);
-    const [userColors] = useState<Map<string, string>>(new Map());
-    const [connectionError, setConnectionError] = useState<string>('');
-    const [isConnecting, setIsConnecting] = useState<boolean>(false);
+    const [isUsernameSet, setIsUsernameSet] = useState<boolean>(false);
 
-    const getColorForUser = (user: string): string => {
-        if (!userColors.has(user)) {
-            userColors.set(user, generateColorFromUsername(user));
-        }
-        return userColors.get(user) || 'bg-gray-500';
-    };
+    // Kullanıcıların renklerini saklayacak bir Map oluştur
+    const [userColors, setUserColors] = useState<UserColors>({});
+
+  
+
+    const [userList, setUserList] = useState<string[]>([]);
+    const [error, setError] = useState<string>('');
 
     useEffect(() => {
-        const connectToServer = () => {
-            if (isConnecting) return;
-            
-            setIsConnecting(true);
-            setConnectionError('');
-            
-            socket.connect();
+        // Aktif odaları dinle
+        socket.on('activeRooms', (rooms: string[]) => {
+            console.log('Aktif odalar:', rooms); // Debug için
+            setActiveRooms(rooms);
+        });
 
-            const timeoutId = setTimeout(() => {
-                if (!socket.connected) {
-                    socket.disconnect();
-                    setConnectionError('Sunucuya bağlanılamadı. Lütfen daha sonra tekrar deneyin.');
-                    setIsConnecting(false);
-                }
-            }, 5000);
+        // Odaya katılma durumunu dinle
+        socket.on('roomJoined', ({ room, userColor }: { room: string, userColor: string }) => {
+            setRoom(room);
+            setMessages([]); // Yeni odaya geçince mesajları temizle
+            setUserColors(prev => ({
+                ...prev,
+                [username]: userColor
+            }));
+        });
 
-            socket.on('connect', () => {
-                clearTimeout(timeoutId);
-                setIsConnecting(false);
-                setConnectionError('');
-                console.log('Sunucuya bağlandı');
-            });
+        // Kullanıcı sayısını dinle
+        socket.on('userCount', (count: number) => {
+            setUserCount(count);
+        });
 
-            socket.on('connect_error', (error) => {
-                clearTimeout(timeoutId);
-                console.error('Bağlantı hatası:', error);
-                setConnectionError('Sunucuya bağlanılamadı. Lütfen daha sonra tekrar deneyin.');
-                setIsConnecting(false);
-                socket.disconnect();
-            });
+        // Mesajları dinle
+        socket.on('message', (msg: Message) => {
+            setMessages((prev) => [...prev, msg]);
+        });
 
-            // Diğer socket event listener'ları
-            socket.on('activeRooms', (rooms: string[]) => {
-                setActiveRooms(rooms);
-            });
+        // Kullanıcı listesini dinle
+        socket.on('userList', (users: string[]) => {
+            setUserList(users);
+        });
 
-            socket.on('roomJoined', ({ room }: { room: string }) => {
-                setRoom(room);
-                setMessages([]);
-            });
+        // Oda hatalarını dinle
+        socket.on('roomError', ({ message }: { message: string }) => {
+            setError(message);
+        });
 
-            socket.on('userCount', (count: number) => {
-                setUserCount(count);
-            });
-
-            socket.on('message', (msg: Message) => {
-                setMessages(prev => [...prev, msg]);
-            });
-
-            socket.on('disconnect', (reason) => {
-                console.log('Sunucudan ayrıldı:', reason);
-                setConnectionError('Sunucu bağlantısı kesildi.');
-            });
-        };
-
-        connectToServer();
+        // Kullanıcı renklerini dinle
+        socket.on('userColors', (colors: UserColors) => {
+            setUserColors(colors);
+        });
 
         return () => {
-            socket.off('connect');
-            socket.off('connect_error');
             socket.off('activeRooms');
             socket.off('roomJoined');
             socket.off('userCount');
             socket.off('message');
-            socket.off('disconnect');
-            socket.disconnect();
+            socket.off('userList');
+            socket.off('roomError');
+            socket.off('userColors');
         };
-    }, []);
+    }, [username]);
 
     const handleSetUsername = (e: React.FormEvent) => {
         e.preventDefault();
         if (usernameInput.trim()) {
             setUsername(usernameInput.trim());
-            setIsernameSet(true);
+            setIsUsernameSet(true);
         }
     };
 
     const createRoom = () => {
-        if (!socket.connected) {
-            setConnectionError('Sunucuya bağlı değilsiniz. Lütfen sayfayı yenileyip tekrar deneyin.');
-            return;
-        }
-        socket.emit('createRoom');
+        socket.emit('createRoom', username);
     };
 
     const joinRoom = (roomId: string) => {
-        if (!socket.connected) {
-            setConnectionError('Sunucuya bağlı değilsiniz. Lütfen sayfayı yenileyip tekrar deneyin.');
-            return;
-        }
-        socket.emit('joinRoom', roomId);
+        socket.emit('joinRoom', { roomId, username });
     };
 
     const sendMessage = () => {
         if (input.trim() && room) {
-            const message: Message = { user: username, text: input };
+            const message: Message = { 
+                user: username, 
+                text: input,
+                timestamp: Date.now()
+            };
             socket.emit('message', { room, ...message });
             setInput('');
         }
@@ -202,49 +164,28 @@ const Home: React.FC = () => {
                 <div className="mb-4 text-xl font-semibold text-gray-800">
                     Hoş geldin, {username}!
                 </div>
+                <button
+                    onClick={createRoom}
+                    className="mb-4 px-4 py-2 bg-green-500 text-white font-semibold rounded-md hover:bg-green-600"
+                >
+                    Yeni Oda Oluştur
+                </button>
                 
-                {connectionError && (
-                    <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-md">
-                        {connectionError}
+                {activeRooms.length > 0 && (
+                    <div className="w-full max-w-md">
+                        <h2 className="text-xl font-bold mb-2">Aktif Odalar:</h2>
+                        <div className="space-y-2">
+                            {activeRooms.map((roomId) => (
+                                <button
+                                    key={roomId}
+                                    onClick={() => joinRoom(roomId)}
+                                    className="w-full px-4 py-2 bg-blue-500 text-white font-semibold rounded-md hover:bg-blue-600"
+                                >
+                                    {roomId}
+                                </button>
+                            ))}
+                        </div>
                     </div>
-                )}
-
-                {isConnecting ? (
-                    <div className="mb-4 p-3 bg-yellow-100 text-yellow-700 rounded-md">
-                        Sunucuya bağlanılıyor...
-                    </div>
-                ) : (
-                    <>
-                        <button
-                            onClick={createRoom}
-                            disabled={!!connectionError}
-                            className={`mb-4 px-4 py-2 text-white font-semibold rounded-md ${
-                                connectionError ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'
-                            }`}
-                        >
-                            Yeni Oda Oluştur
-                        </button>
-                        
-                        {activeRooms.length > 0 && (
-                            <div className="w-full max-w-md">
-                                <h2 className="text-xl font-bold mb-2">Aktif Odalar:</h2>
-                                <div className="space-y-2">
-                                    {activeRooms.map((roomId) => (
-                                        <button
-                                            key={roomId}
-                                            onClick={() => joinRoom(roomId)}
-                                            disabled={!!connectionError}
-                                            className={`w-full px-4 py-2 text-white font-semibold rounded-md ${
-                                                connectionError ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600'
-                                            }`}
-                                        >
-                                            {roomId}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </>
                 )}
             </div>
         );
@@ -253,42 +194,82 @@ const Home: React.FC = () => {
     // Sohbet ekranı
     return (
         <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
-            <div className="w-full max-w-md bg-white shadow-md rounded-lg p-4">
+        {
+            error && <div className="text-red-500">{error}</div>
+        }
+            <div className="w-full max-w-4xl bg-white shadow-md rounded-lg p-4">
                 <div className="flex justify-between items-center mb-4">
                     <h1 className="text-2xl font-bold text-gray-800">Oda: {room}</h1>
-                    <span className="bg-green-500 text-white px-2 py-1 rounded">
-                        {userCount} Kullanıcı
-                    </span>
+                    <div className="flex items-center space-x-2">
+                        <span className="bg-green-500 text-white px-2 py-1 rounded">
+                            {userCount} Kullanıcı
+                        </span>
+                    </div>
                 </div>
-                <div className="h-64 overflow-y-auto border border-gray-300 rounded-md p-2 mb-4">
-                    {messages.map((msg, index) => (
-                        <div
-                            key={index}
-                            className={`p-2 mb-2 rounded-md text-white ${
-                                msg.user === username ? 'ml-auto' : ''
-                            } ${getColorForUser(msg.user)}`}
-                            style={{ maxWidth: '80%' }}
-                        >
-                            <strong>{msg.user}: </strong>
-                            {msg.text}
+                <div className="flex gap-4">
+                    {/* Kullanıcı listesi */}
+                    <div className="w-1/4 border-r pr-4">
+                        <h2 className="text-lg font-semibold mb-2">Kullanıcılar</h2>
+                        <ul className="space-y-1">
+                            {userList.map((user, index) => (
+                                <li
+                                    key={index}
+                                    className="p-2 rounded-lg shadow-sm flex items-center space-x-2"
+                                    style={{
+                                        backgroundColor: '#f3f4f6',
+                                        borderLeft: `4px solid ${userColors[user] || '#808080'}`
+                                    }}
+                                >
+                                    <span className="w-2 h-2 rounded-full"
+                                        style={{ backgroundColor: userColors[user] || '#808080' }}
+                                    />
+                                    <span className="text-gray-700">{user}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                    
+                    {/* Mesajlaşma alanı */}
+                    <div className="flex-1">
+                        <div className="h-[500px] overflow-y-auto border border-gray-300 rounded-md p-2 mb-4">
+                            {messages.map((msg, index) => (
+                                <div
+                                    key={index}
+                                    className={`p-3 mb-2 rounded-lg shadow-md ${
+                                        msg.user === username ? 'ml-auto bg-blue-600' : 'bg-gray-700'
+                                    }`}
+                                    style={{ 
+                                        maxWidth: '80%',
+                                        position: 'relative',
+                                        borderLeft: `4px solid ${userColors[msg.user] || '#808080'}`
+                                    }}
+                                >
+                                    <div className="text-xs text-gray-300 mb-1">
+                                        {msg.user}
+                                    </div>
+                                    <div className="text-white">
+                                        {msg.text}
+                                    </div>
+                                </div>
+                            ))}
                         </div>
-                    ))}
-                </div>
-                <div className="flex items-center space-x-2">
-                    <input
-                        type="text"
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        placeholder="Mesaj yazın"
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-blue-500"
-                    />
-                    <button
-                        onClick={sendMessage}
-                        className="px-4 py-2 bg-blue-500 text-white font-semibold rounded-md hover:bg-blue-600"
-                    >
-                        Gönder
-                    </button>
+                        <div className="flex items-center space-x-2">
+                            <input
+                                type="text"
+                                value={input}
+                                onChange={(e) => setInput(e.target.value)}
+                                onKeyDown={handleKeyDown}
+                                placeholder="Mesaj yazın"
+                                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:ring-blue-500"
+                            />
+                            <button
+                                onClick={sendMessage}
+                                className="px-4 py-2 bg-blue-500 text-white font-semibold rounded-md hover:bg-blue-600"
+                            >
+                                Gönder
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
