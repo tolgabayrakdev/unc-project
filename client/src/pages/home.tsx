@@ -11,7 +11,7 @@ interface UserColors {
     [key: string]: string;
 }
 
-const socket: Socket = io('http://localhost:1234', {
+const socket: Socket = io('https://unc-project-9xtu.vercel.app', {
     withCredentials: true
 });
 
