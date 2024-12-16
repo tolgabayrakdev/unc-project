@@ -6,14 +6,11 @@ interface Message {
     text: string;
 }
 
-// Socket bağlantısını component dışında oluştur
 const socket: Socket = io('https://unc-project-9xtu.vercel.app', {
     withCredentials: true,
     transports: ['polling', 'websocket'],
-    reconnection: true,
-    reconnectionAttempts: 5,
-    reconnectionDelay: 1000,
-    timeout: 20000,
+    reconnection: false,
+    timeout: 5000,
     forceNew: true,
     autoConnect: false
 });
@@ -45,6 +42,8 @@ const Home: React.FC = () => {
     const [userCount, setUserCount] = useState<number>(0);
     const [isUsernameSet, setIsernameSet] = useState<boolean>(false);
     const [userColors] = useState<Map<string, string>>(new Map());
+    const [connectionError, setConnectionError] = useState<string>('');
+    const [isConnecting, setIsConnecting] = useState<boolean>(false);
 
     const getColorForUser = (user: string): string => {
         if (!userColors.has(user)) {
@@ -54,60 +53,65 @@ const Home: React.FC = () => {
     };
 
     useEffect(() => {
-        // Socket bağlantısını başlat
-        socket.connect();
+        const connectToServer = () => {
+            if (isConnecting) return;
+            
+            setIsConnecting(true);
+            setConnectionError('');
+            
+            socket.connect();
 
-        // Event listener'ları tanımla
-        const handleActiveRooms = (rooms: string[]) => {
-            setActiveRooms(rooms);
+            const timeoutId = setTimeout(() => {
+                if (!socket.connected) {
+                    socket.disconnect();
+                    setConnectionError('Sunucuya bağlanılamadı. Lütfen daha sonra tekrar deneyin.');
+                    setIsConnecting(false);
+                }
+            }, 5000);
+
+            socket.on('connect', () => {
+                clearTimeout(timeoutId);
+                setIsConnecting(false);
+                setConnectionError('');
+                console.log('Sunucuya bağlandı');
+            });
+
+            socket.on('connect_error', (error) => {
+                clearTimeout(timeoutId);
+                console.error('Bağlantı hatası:', error);
+                setConnectionError('Sunucuya bağlanılamadı. Lütfen daha sonra tekrar deneyin.');
+                setIsConnecting(false);
+                socket.disconnect();
+            });
         };
 
-        const handleRoomJoined = ({ room }: { room: string }) => {
-            setRoom(room);
-            setMessages([]);
-        };
+        connectToServer();
 
-        const handleUserCount = (count: number) => {
-            setUserCount(count);
-        };
-
-        const handleMessage = (msg: Message) => {
-            setMessages(prev => [...prev, msg]);
-        };
-
-        const handleConnect = () => {
-            console.log('Sunucuya bağlandı');
-        };
-
-        const handleDisconnect = (reason: string) => {
-            console.log('Sunucudan ayrıldı:', reason);
-        };
-
-        const handleConnectError = (error: Error) => {
-            console.error('Bağlantı hatası:', error);
-        };
-
-        // Event listener'ları ekle
-        socket.on('activeRooms', handleActiveRooms);
-        socket.on('roomJoined', handleRoomJoined);
-        socket.on('userCount', handleUserCount);
-        socket.on('message', handleMessage);
-        socket.on('connect', handleConnect);
-        socket.on('disconnect', handleDisconnect);
-        socket.on('connect_error', handleConnectError);
-
-        // Cleanup function
         return () => {
-            socket.off('activeRooms', handleActiveRooms);
-            socket.off('roomJoined', handleRoomJoined);
-            socket.off('userCount', handleUserCount);
-            socket.off('message', handleMessage);
-            socket.off('connect', handleConnect);
-            socket.off('disconnect', handleDisconnect);
-            socket.off('connect_error', handleConnectError);
             socket.disconnect();
         };
-    }, []); // Boş dependency array
+    }, []);
+
+    const handleActiveRooms = (rooms: string[]) => {
+        setActiveRooms(rooms);
+    };
+
+    const handleRoomJoined = ({ room }: { room: string }) => {
+        setRoom(room);
+        setMessages([]);
+    };
+
+    const handleUserCount = (count: number) => {
+        setUserCount(count);
+    };
+
+    const handleMessage = (msg: Message) => {
+        setMessages(prev => [...prev, msg]);
+    };
+
+    const handleDisconnect = (reason: string) => {
+        console.log('Sunucudan ayrıldı:', reason);
+    };
 
     const handleSetUsername = (e: React.FormEvent) => {
         e.preventDefault();
@@ -118,10 +122,18 @@ const Home: React.FC = () => {
     };
 
     const createRoom = () => {
+        if (!socket.connected) {
+            setConnectionError('Sunucuya bağlı değilsiniz. Lütfen sayfayı yenileyip tekrar deneyin.');
+            return;
+        }
         socket.emit('createRoom');
     };
 
     const joinRoom = (roomId: string) => {
+        if (!socket.connected) {
+            setConnectionError('Sunucuya bağlı değilsiniz. Lütfen sayfayı yenileyip tekrar deneyin.');
+            return;
+        }
         socket.emit('joinRoom', roomId);
     };
 
@@ -181,28 +193,49 @@ const Home: React.FC = () => {
                 <div className="mb-4 text-xl font-semibold text-gray-800">
                     Hoş geldin, {username}!
                 </div>
-                <button
-                    onClick={createRoom}
-                    className="mb-4 px-4 py-2 bg-green-500 text-white font-semibold rounded-md hover:bg-green-600"
-                >
-                    Yeni Oda Oluştur
-                </button>
                 
-                {activeRooms.length > 0 && (
-                    <div className="w-full max-w-md">
-                        <h2 className="text-xl font-bold mb-2">Aktif Odalar:</h2>
-                        <div className="space-y-2">
-                            {activeRooms.map((roomId) => (
-                                <button
-                                    key={roomId}
-                                    onClick={() => joinRoom(roomId)}
-                                    className="w-full px-4 py-2 bg-blue-500 text-white font-semibold rounded-md hover:bg-blue-600"
-                                >
-                                    {roomId}
-                                </button>
-                            ))}
-                        </div>
+                {connectionError && (
+                    <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-md">
+                        {connectionError}
                     </div>
+                )}
+
+                {isConnecting ? (
+                    <div className="mb-4 p-3 bg-yellow-100 text-yellow-700 rounded-md">
+                        Sunucuya bağlanılıyor...
+                    </div>
+                ) : (
+                    <>
+                        <button
+                            onClick={createRoom}
+                            disabled={!!connectionError}
+                            className={`mb-4 px-4 py-2 text-white font-semibold rounded-md ${
+                                connectionError ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'
+                            }`}
+                        >
+                            Yeni Oda Oluştur
+                        </button>
+                        
+                        {activeRooms.length > 0 && (
+                            <div className="w-full max-w-md">
+                                <h2 className="text-xl font-bold mb-2">Aktif Odalar:</h2>
+                                <div className="space-y-2">
+                                    {activeRooms.map((roomId) => (
+                                        <button
+                                            key={roomId}
+                                            onClick={() => joinRoom(roomId)}
+                                            disabled={!!connectionError}
+                                            className={`w-full px-4 py-2 text-white font-semibold rounded-md ${
+                                                connectionError ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600'
+                                            }`}
+                                        >
+                                            {roomId}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
         );
