@@ -6,7 +6,7 @@ interface Message {
     text: string;
 }
 
-const socket: Socket = io('https://unc-project-9xtu.vercel.app/', {
+const socket: Socket = io('https://unc-project-9xtu.vercel.app', {
     withCredentials: true
 });
 

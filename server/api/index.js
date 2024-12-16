@@ -10,13 +10,20 @@ const app = express();
 const server = http.createServer(app);
 
 const corsOptions = {
-    origin: ["https://unc-project.vercel.app/"],
+    origin: ["https://unc-project.vercel.app"],
     methods: ["GET", "POST"],
     credentials: true
 };
 
 const io = new Server(server, {
-    cors: corsOptions,
+    cors: {
+        origin: [
+            "https://unc-project.vercel.app",
+            "http://localhost:5173"
+        ],
+        methods: ["GET", "POST"],
+        credentials: true
+    },
 });
 
 app.use(express.json());
