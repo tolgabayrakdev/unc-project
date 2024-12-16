@@ -12,7 +12,8 @@ const server = http.createServer(app);
 // CORS ayarlarını burada doğru yapalım
 const corsOptions = {
     origin: ["https://unc-project.vercel.app", "https://unc-project-9xtu.vercel.app"], // Her iki domain
-    methods: ["GET", "POST"]
+    methods: ["GET", "POST"],
+    credentials: true
 };
 
 const io = new Server(server, {
