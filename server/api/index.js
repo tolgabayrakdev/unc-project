@@ -52,6 +52,12 @@ io.on('connection', (socket) => {
         console.log('Bir kullanıcı ayrıldı:', socket.id);
         if (waitingUser && waitingUser.id === socket.id) {
             waitingUser = null; // Bekleyen kullanıcı ayrılırsa sıfırlanır
+        } else {
+            // Diğer kullanıcıya oda bağlantısını kes
+            const rooms = Object.keys(socket.rooms);
+            rooms.forEach(room => {
+                socket.leave(room); // Kullanıcıyı odadan çıkar
+            });
         }
     });
 });
@@ -63,4 +69,3 @@ app.get('/', (req, res) => {
 server.listen(process.env.SERVER_PORT || 1234, () => {
     console.log(`Server running on port ${process.env.SERVER_PORT || 1234}`);
 });
-
