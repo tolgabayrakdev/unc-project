@@ -6,6 +6,7 @@ interface Message {
     text: string;
 }
 
+// Socket bağlantısını component dışında oluştur
 const socket: Socket = io('https://unc-project-9xtu.vercel.app', {
     withCredentials: true,
     transports: ['polling'],
@@ -15,28 +16,6 @@ const socket: Socket = io('https://unc-project-9xtu.vercel.app', {
     timeout: 10000,
     path: '/socket.io/',
     autoConnect: false,
-});
-
-// Bağlantıyı başlat
-useEffect(() => {
-    socket.connect();
-    
-    return () => {
-        socket.disconnect();
-    };
-}, []);
-
-// Socket bağlantı durumunu izle
-socket.on('connect_error', (error) => {
-    console.error('Bağlantı hatası:', error);
-});
-
-socket.on('connect', () => {
-    console.log('Sunucuya bağlandı');
-});
-
-socket.on('disconnect', (reason) => {
-    console.log('Sunucudan ayrıldı:', reason);
 });
 
 // Kullanıcı adından renk üretme fonksiyonu
@@ -52,10 +31,7 @@ const generateColorFromUsername = (username: string): string => {
         'bg-teal-500'
     ];
     
-    // Kullanıcı adının harflerinin ASCII değerlerinin toplamını al
     const sum = username.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    
-    // Toplam değeri renk dizisinin uzunluğuna göre modunu al
     return colors[sum % colors.length];
 };
 
@@ -67,12 +43,9 @@ const Home: React.FC = () => {
     const [room, setRoom] = useState<string | null>(null);
     const [activeRooms, setActiveRooms] = useState<string[]>([]);
     const [userCount, setUserCount] = useState<number>(0);
-    const [isUsernameSet, setIsUsernameSet] = useState<boolean>(false);
-
-    // Kullanıcıların renklerini saklayacak bir Map oluştur
+    const [isUsernameSet, setIsernameSet] = useState<boolean>(false);
     const [userColors] = useState<Map<string, string>>(new Map());
 
-    // Mesaj gönderen her kullanıcı için renk ata
     const getColorForUser = (user: string): string => {
         if (!userColors.has(user)) {
             userColors.set(user, generateColorFromUsername(user));
@@ -81,40 +54,66 @@ const Home: React.FC = () => {
     };
 
     useEffect(() => {
-        // Aktif odaları dinle
-        socket.on('activeRooms', (rooms: string[]) => {
+        // Socket bağlantısını başlat
+        socket.connect();
+
+        // Event listener'ları tanımla
+        const handleActiveRooms = (rooms: string[]) => {
             setActiveRooms(rooms);
-        });
-
-        // Odaya katılma durumunu dinle
-        socket.on('roomJoined', ({ room }: { room: string }) => {
-            setRoom(room);
-            setMessages([]); // Yeni odaya geçince mesajları temizle
-        });
-
-        // Kullanıcı sayısını dinle
-        socket.on('userCount', (count: number) => {
-            setUserCount(count);
-        });
-
-        // Mesajları dinle
-        socket.on('message', (msg: Message) => {
-            setMessages((prev) => [...prev, msg]);
-        });
-
-        return () => {
-            socket.off('activeRooms');
-            socket.off('roomJoined');
-            socket.off('userCount');
-            socket.off('message');
         };
-    }, []);
+
+        const handleRoomJoined = ({ room }: { room: string }) => {
+            setRoom(room);
+            setMessages([]);
+        };
+
+        const handleUserCount = (count: number) => {
+            setUserCount(count);
+        };
+
+        const handleMessage = (msg: Message) => {
+            setMessages(prev => [...prev, msg]);
+        };
+
+        const handleConnect = () => {
+            console.log('Sunucuya bağlandı');
+        };
+
+        const handleDisconnect = (reason: string) => {
+            console.log('Sunucudan ayrıldı:', reason);
+        };
+
+        const handleConnectError = (error: Error) => {
+            console.error('Bağlantı hatası:', error);
+        };
+
+        // Event listener'ları ekle
+        socket.on('activeRooms', handleActiveRooms);
+        socket.on('roomJoined', handleRoomJoined);
+        socket.on('userCount', handleUserCount);
+        socket.on('message', handleMessage);
+        socket.on('connect', handleConnect);
+        socket.on('disconnect', handleDisconnect);
+        socket.on('connect_error', handleConnectError);
+
+        // Cleanup function
+        return () => {
+            socket.off('activeRooms', handleActiveRooms);
+            socket.off('roomJoined', handleRoomJoined);
+            socket.off('userCount', handleUserCount);
+            socket.off('message', handleMessage);
+            socket.off('connect', handleConnect);
+            socket.off('disconnect', handleDisconnect);
+            socket.off('connect_error', handleConnectError);
+            socket.disconnect();
+        };
+    }, []); // Boş dependency array
 
     const handleSetUsername = (e: React.FormEvent) => {
         e.preventDefault();
         if (usernameInput.trim()) {
             setUsername(usernameInput.trim());
-            setIsUsernameSet(true);
+            setIsernameSet(true);
         }
     };
 
