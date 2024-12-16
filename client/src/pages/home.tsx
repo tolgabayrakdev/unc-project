@@ -83,35 +83,44 @@ const Home: React.FC = () => {
                 setIsConnecting(false);
                 socket.disconnect();
             });
+
+            // Diğer socket event listener'ları
+            socket.on('activeRooms', (rooms: string[]) => {
+                setActiveRooms(rooms);
+            });
+
+            socket.on('roomJoined', ({ room }: { room: string }) => {
+                setRoom(room);
+                setMessages([]);
+            });
+
+            socket.on('userCount', (count: number) => {
+                setUserCount(count);
+            });
+
+            socket.on('message', (msg: Message) => {
+                setMessages(prev => [...prev, msg]);
+            });
+
+            socket.on('disconnect', (reason) => {
+                console.log('Sunucudan ayrıldı:', reason);
+                setConnectionError('Sunucu bağlantısı kesildi.');
+            });
         };
 
         connectToServer();
 
         return () => {
+            socket.off('connect');
+            socket.off('connect_error');
+            socket.off('activeRooms');
+            socket.off('roomJoined');
+            socket.off('userCount');
+            socket.off('message');
+            socket.off('disconnect');
             socket.disconnect();
         };
     }, []);
-
-    const handleActiveRooms = (rooms: string[]) => {
-        setActiveRooms(rooms);
-    };
-
-    const handleRoomJoined = ({ room }: { room: string }) => {
-        setRoom(room);
-        setMessages([]);
-    };
-
-    const handleUserCount = (count: number) => {
-        setUserCount(count);
-    };
-
-    const handleMessage = (msg: Message) => {
-        setMessages(prev => [...prev, msg]);
-    };
-
-    const handleDisconnect = (reason: string) => {
-        console.log('Sunucudan ayrıldı:', reason);
-    };
 
     const handleSetUsername = (e: React.FormEvent) => {
         e.preventDefault();
