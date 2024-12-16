@@ -28,15 +28,18 @@ const io = new Server(server, {
         credentials: true,
         allowedHeaders: ["Content-Type", "Authorization"]
     },
-    transports: ['websocket', 'polling'],
+    transports: ['polling'],
     pingTimeout: 60000,
     pingInterval: 25000,
-    cookie: {
-        name: "io",
-        httpOnly: true,
-        sameSite: "none",
-        secure: true
-    }
+    path: '/socket.io/'
+});
+
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', ALLOWED_ORIGINS);
+    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.header('Access-Control-Allow-Credentials', true);
+    next();
 });
 
 app.use(express.json());

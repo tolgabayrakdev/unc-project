@@ -8,10 +8,11 @@ interface Message {
 
 const socket: Socket = io('https://unc-project-9xtu.vercel.app', {
     withCredentials: true,
-    transports: ['websocket', 'polling'],
+    transports: ['polling'],
     reconnection: true,
     reconnectionAttempts: 5,
     reconnectionDelay: 1000,
+    timeout: 10000
 });
 
 // Socket bağlantı durumunu izle
