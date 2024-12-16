@@ -6,7 +6,7 @@ interface Message {
     text: string;
 }
 
-const socket: Socket = io('http://localhost:1234');
+const socket: Socket = io('https://unc-project-9xtu.vercel.app');
 
 // Rastgele kullanıcı adı oluştur
 const generateRandomName = (): string => `User${Math.floor(1000 + Math.random() * 9000)}`;
