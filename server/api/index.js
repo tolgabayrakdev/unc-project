@@ -56,6 +56,10 @@ io.on('connection', (socket) => {
     });
 });
 
+app.get('/', (req, res) => {
+    res.send('Server is running');
+});
+
 server.listen(process.env.SERVER_PORT || 1234, () => {
     console.log(`Server running on port ${process.env.SERVER_PORT || 1234}`);
 });
